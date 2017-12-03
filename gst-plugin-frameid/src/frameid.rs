@@ -1,17 +1,14 @@
 use glib;
 use gst;
 use gst::prelude::*;
-use gst_base;
-use gst_base::prelude::*;
 use gst_video;
-use gst_video::prelude::*;
 
 use gst_plugin::properties::*;
 use gst_plugin::object::*;
 use gst_plugin::element::*;
 use gst_plugin::base_transform::*;
 
-use std::{cmp, iter, i32, u64};
+use std::{i32, u64};
 use std::sync::Mutex;
 
 use qrcode::QrCode;
@@ -154,7 +151,7 @@ impl BaseTransformImpl<BaseTransform> for FrameId {
             Some(map) => map,
         };
 
-        let mut settings = self.settings.lock().unwrap();
+        let settings = self.settings.lock().unwrap();
         let mut text = match settings.prefix {
             None => "".to_owned(),
             Some(ref a) => a.clone(),

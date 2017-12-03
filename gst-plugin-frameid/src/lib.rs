@@ -7,7 +7,6 @@ extern crate gst_plugin;
 #[macro_use]
 extern crate gstreamer as gst;
 extern crate gstreamer_video as gst_video;
-extern crate gstreamer_base as gst_base;
 extern crate qrcode;
 extern crate image;
 
