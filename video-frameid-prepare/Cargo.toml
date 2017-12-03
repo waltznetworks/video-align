@@ -6,8 +6,6 @@ authors = ["Thiago Santos <thiagossantos@gmail.com>"]
 [dependencies]
 failure = "0.1"
 failure_derive = "0.1"
-qrcode = "0.5.0"
-image = "0.17.0"
 gst-plugin-frameid = { path = "../gst-plugin-frameid" }
 glib = { git="https://github.com/gtk-rs/glib"}
 gstreamer = { git="https://github.com/sdroege/gstreamer-rs"}
