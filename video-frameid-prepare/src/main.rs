@@ -26,8 +26,10 @@ struct ErrorMessage {
     #[cause] cause: glib::Error,
 }
 
+// TODO This should be discovered by the input file
 const WIDTH: usize = 1280;
 const HEIGHT: usize = 720;
+const FRAMERATE: usize = 24;
 
 fn setup_prepend_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Result<bool, Error> {
     let src = gst::ElementFactory::make("videotestsrc", None).ok_or(MissingElement("videotestsrc"))?;
@@ -38,7 +40,8 @@ fn setup_prepend_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Resul
 
     src.set_property("num-buffers", &300);
     frameid.set_property("prefix", &"s:".to_owned());
-    srccapsfilter.set_property("caps", &gst::Caps::from_string("video/x-raw, format=(string)I420, width=(int)1280, height=(int)720, framerate=(fraction)24/1"));
+    srccapsfilter.set_property("caps", &gst::Caps::from_string(&format!("video/x-raw, format=(string)I420, width=(int){}, height=(int){}, framerate=(fraction){}/1",
+            WIDTH, HEIGHT, FRAMERATE)));
 
     pipeline.add_many(&[&src, &frameid, &srcconv, &srccapsfilter, &srcenc])?;
     gst::Element::link_many(&[&src, &frameid, &srcconv, &srccapsfilter, &srcenc])?;
@@ -104,7 +107,8 @@ fn setup_append_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Result
     let lastcapsfilter = gst::ElementFactory::make("capsfilter", None).ok_or(MissingElement("capsfilter"))?;
     let lastenc = gst::ElementFactory::make("x264enc", None).ok_or(MissingElement("x264enc"))?;
 
-    lastcapsfilter.set_property("caps", &gst::Caps::from_string("video/x-raw, format=(string)I420, width=(int)1280, height=(int)720, framerate=(fraction)24/1"));
+    lastcapsfilter.set_property("caps", &gst::Caps::from_string(&format!("video/x-raw, format=(string)I420, width=(int){}, height=(int){}, framerate=(fraction){}/1",
+            WIDTH, HEIGHT, FRAMERATE)));
     videotestsrc.set_property("pattern", &1);
     videotestsrc.set_property("num-buffers", &300);
     lastframeid.set_property("prefix", &"e:".to_owned());
