@@ -38,10 +38,10 @@ fn setup_prepend_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Resul
     let srccapsfilter = gst::ElementFactory::make("capsfilter", None).ok_or(MissingElement("capsfilter"))?;
     let srcenc = gst::ElementFactory::make("x264enc", None).ok_or(MissingElement("x264enc"))?;
 
-    src.set_property("num-buffers", &300);
-    frameid.set_property("prefix", &"s:".to_owned());
+    src.set_property("num-buffers", &300)?;
+    frameid.set_property("prefix", &"s:".to_owned())?;
     srccapsfilter.set_property("caps", &gst::Caps::from_string(&format!("video/x-raw, format=(string)I420, width=(int){}, height=(int){}, framerate=(fraction){}/1",
-            WIDTH, HEIGHT, FRAMERATE)));
+            WIDTH, HEIGHT, FRAMERATE)))?;
 
     pipeline.add_many(&[&src, &frameid, &srcconv, &srccapsfilter, &srcenc])?;
     gst::Element::link_many(&[&src, &frameid, &srcconv, &srccapsfilter, &srcenc])?;
@@ -54,11 +54,12 @@ fn setup_prepend_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Resul
 fn setup_decoder_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Result<bool, Error> {
     let uridec = gst::ElementFactory::make("uridecodebin", None).ok_or(MissingElement("uridecodebin"))?;
 
-    uridec.set_property("uri", &glib::Value::from("file:///home/thiagoss/Videos/sintel_trailer-720p.mp4")).unwrap();
-    pipeline.add(&uridec);
+    uridec.set_property("uri", &glib::Value::from("file:///home/thiagoss/Videos/sintel_trailer-720p.mp4"))?;
+    pipeline.add(&uridec)?;
 
     let pipeline_clone = pipeline.clone();
     uridec.connect_pad_added(move |_, src_pad| {
+        // FIXME post an error message if any of those fail instead of just doing unwrap()
         if !src_pad.get_current_caps().unwrap().get_structure(0).unwrap().get_name().contains("video") {
             return;
         }
@@ -70,7 +71,7 @@ fn setup_decoder_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Resul
         let frameid = gst::ElementFactory::make("rsframeid", None).unwrap();
         let frameidvideoconvert = gst::ElementFactory::make("videoconvert", None).unwrap();
 
-        frameidcf.set_property("caps", &gst::Caps::from_string("video/x-raw, format=(string)I420"));
+        frameidcf.set_property("caps", &gst::Caps::from_string("video/x-raw, format=(string)I420")).unwrap();
 
         let pipeline = &pipeline_clone;
 
@@ -87,7 +88,7 @@ fn setup_decoder_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Resul
         frameid.sync_state_with_parent().unwrap();
         videoconvert.sync_state_with_parent().unwrap();
         queue.sync_state_with_parent().unwrap();
-        frameid.set_property("prefix", &"f:".to_owned());
+        frameid.set_property("prefix", &"f:".to_owned()).unwrap();
 
         assert_eq!(enc.get_static_pad("src").unwrap().link(&sink_pad), gst::PadLinkReturn::Ok);
 
@@ -108,24 +109,19 @@ fn setup_append_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Result
     let lastenc = gst::ElementFactory::make("x264enc", None).ok_or(MissingElement("x264enc"))?;
 
     lastcapsfilter.set_property("caps", &gst::Caps::from_string(&format!("video/x-raw, format=(string)I420, width=(int){}, height=(int){}, framerate=(fraction){}/1",
-            WIDTH, HEIGHT, FRAMERATE)));
-    videotestsrc.set_property("pattern", &1);
-    videotestsrc.set_property("num-buffers", &300);
-    lastframeid.set_property("prefix", &"e:".to_owned());
+            WIDTH, HEIGHT, FRAMERATE)))?;
+    videotestsrc.set_property("num-buffers", &300)?;
+    lastframeid.set_property("prefix", &"e:".to_owned())?;
 
-    pipeline.add(&videotestsrc);
-    pipeline.add(&lastframeid);
-    pipeline.add(&lastvideoconvert);
-    pipeline.add(&lastcapsfilter);
-    pipeline.add(&lastenc);
-    gst::Element::link_many(&[&videotestsrc, &lastframeid, &lastvideoconvert, &lastcapsfilter, &lastenc]).unwrap();
+    pipeline.add_many(&[&videotestsrc, &lastframeid, &lastvideoconvert, &lastcapsfilter, &lastenc])?;
+    gst::Element::link_many(&[&videotestsrc, &lastframeid, &lastvideoconvert, &lastcapsfilter, &lastenc])?;
 
     assert_eq!(lastenc.get_static_pad("src").unwrap().link(&sink_pad), gst::PadLinkReturn::Ok);
-    lastenc.sync_state_with_parent().unwrap();
-    lastcapsfilter.sync_state_with_parent().unwrap();
-    lastvideoconvert.sync_state_with_parent().unwrap();
-    lastframeid.sync_state_with_parent().unwrap();
-    videotestsrc.sync_state_with_parent().unwrap();
+    lastenc.sync_state_with_parent()?;
+    lastcapsfilter.sync_state_with_parent()?;
+    lastvideoconvert.sync_state_with_parent()?;
+    lastframeid.sync_state_with_parent()?;
+    videotestsrc.sync_state_with_parent()?;
 
     Ok(true)
 }
