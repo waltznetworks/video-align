@@ -2,4 +2,5 @@
 
 members = [
     "gst-plugin-frameid",
+    "video-frameid-prepare",
 ]
