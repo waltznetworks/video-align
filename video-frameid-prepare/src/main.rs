@@ -47,6 +47,8 @@ const WIDTH: usize = 1280;
 const HEIGHT: usize = 720;
 const FRAMERATE: usize = 24;
 
+const PREFRAMES: i32 = 24;
+
 fn setup_prepend_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Result<bool, Error> {
     let src = gst::ElementFactory::make("videotestsrc", None).ok_or(MissingElement("videotestsrc"))?;
     let frameid = gst::ElementFactory::make("rsframeid", None).ok_or(MissingElement("rsframeid"))?;
@@ -54,7 +56,7 @@ fn setup_prepend_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Resul
     let srccapsfilter = gst::ElementFactory::make("capsfilter", None).ok_or(MissingElement("capsfilter"))?;
     let srcenc = gst::ElementFactory::make("x264enc", None).ok_or(MissingElement("x264enc"))?;
 
-    src.set_property("num-buffers", &300)?;
+    src.set_property("num-buffers", &PREFRAMES)?;
     frameid.set_property("prefix", &"s:".to_owned())?;
     srccapsfilter.set_property("caps", &gst::Caps::from_string(&format!("video/x-raw, format=(string)I420, width=(int){}, height=(int){}, framerate=(fraction){}/1",
             WIDTH, HEIGHT, FRAMERATE)))?;
@@ -126,7 +128,7 @@ fn setup_append_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Result
 
     lastcapsfilter.set_property("caps", &gst::Caps::from_string(&format!("video/x-raw, format=(string)I420, width=(int){}, height=(int){}, framerate=(fraction){}/1",
             WIDTH, HEIGHT, FRAMERATE)))?;
-    videotestsrc.set_property("num-buffers", &300)?;
+    videotestsrc.set_property("num-buffers", &PREFRAMES)?;
     lastframeid.set_property("prefix", &"e:".to_owned())?;
 
     pipeline.add_many(&[&videotestsrc, &lastframeid, &lastvideoconvert, &lastcapsfilter, &lastenc])?;
