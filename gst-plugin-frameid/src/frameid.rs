@@ -158,7 +158,7 @@ impl BaseTransformImpl<BaseTransform> for FrameId {
         };
         text.push_str(&state.frame_index.to_string());
         let code = QrCode::new(text.to_string()).unwrap();
-        let image = code.render::<Luma<u8>>().quiet_zone(false).build();
+        let image = code.render::<Luma<u8>>().quiet_zone(true).build();
 
         let dimensions = image.dimensions();
         for y in 0..dimensions.1 {
