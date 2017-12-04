@@ -9,11 +9,14 @@ extern crate gstreamer as gst;
 extern crate gstreamer_video as gst_video;
 extern crate qrcode;
 extern crate image;
+extern crate quirc;
 
 mod frameid;
+mod frameidfilter;
 
 fn plugin_init(plugin: &gst::Plugin) -> bool {
     frameid::register(plugin);
+    frameidfilter::register(plugin);
     true
 }
 
