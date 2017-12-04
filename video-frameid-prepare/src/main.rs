@@ -8,6 +8,7 @@ extern crate glib;
 extern crate failure;
 use failure::Error;
 
+use std::env;
 use std::error::Error as StdError;
 
 #[macro_use]
@@ -24,6 +25,21 @@ struct ErrorMessage {
     error: String,
     debug: Option<String>,
     #[cause] cause: glib::Error,
+}
+
+#[derive(Debug)]
+struct Config {
+    input: String,
+    output: String,
+}
+
+impl Config {
+    fn new(args: &[String]) -> Result<Config, &'static str> {
+        let input = args[1].clone();
+        let output = args[2].clone();
+
+        Ok(Config {input, output})
+    }
 }
 
 // TODO This should be discovered by the input file
@@ -51,10 +67,10 @@ fn setup_prepend_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Resul
     Ok(true)
 }
 
-fn setup_decoder_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Result<bool, Error> {
+fn setup_decoder_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad, config : &Config) -> Result<bool, Error> {
     let uridec = gst::ElementFactory::make("uridecodebin", None).ok_or(MissingElement("uridecodebin"))?;
 
-    uridec.set_property("uri", &glib::Value::from("file:///home/thiagoss/Videos/sintel_trailer-720p.mp4"))?;
+    uridec.set_property("uri", &glib::Value::from(&config.input))?;
     pipeline.add(&uridec)?;
 
     let pipeline_clone = pipeline.clone();
@@ -126,7 +142,7 @@ fn setup_append_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Result
     Ok(true)
 }
 
-fn create_pipeline() -> Result<(gst::Pipeline), Error> {
+fn create_pipeline(config : Config) -> Result<(gst::Pipeline), Error> {
     gst::init()?;
 
     let pipeline = gst::Pipeline::new(None);
@@ -142,10 +158,10 @@ fn create_pipeline() -> Result<(gst::Pipeline), Error> {
     gst::Element::link_many(&[&mux, &sink])?;
 
     // Source and destination
-    sink.set_property("location", &glib::Value::from("/tmp/videoalign.mp4")).unwrap();
+    sink.set_property("location", &config.output).unwrap();
 
     setup_prepend_branch(&pipeline, concat.get_request_pad("sink_%u").unwrap())?;
-    setup_decoder_branch(&pipeline, concat.get_request_pad("sink_%u").unwrap())?;
+    setup_decoder_branch(&pipeline, concat.get_request_pad("sink_%u").unwrap(), &config)?;
     setup_append_branch(&pipeline, concat.get_request_pad("sink_%u").unwrap())?;
 
     let mux_sinkpad = mux.get_request_pad("video_%u").unwrap();
@@ -188,7 +204,10 @@ fn main_loop(pipeline: gst::Pipeline) -> Result<(), Error> {
 }
 
 fn main() {
-    match create_pipeline().and_then(|pipeline| main_loop(pipeline)) {
+    let args: Vec<String> = env::args().collect();
+    let config = Config::new(&args).unwrap();
+
+    match create_pipeline(config).and_then(|pipeline| main_loop(pipeline)) {
         Ok(r) => r,
         Err(e) => eprintln!("Error! {}", e),
     }
