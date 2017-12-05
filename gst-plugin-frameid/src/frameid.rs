@@ -165,7 +165,7 @@ impl ObjectImpl<BaseTransform> for FrameId {
                 let settings = self.settings.lock().unwrap();
                 Ok(settings.position.to_value())
             }
-            Property::String("quiet-zone", ..) => {
+            Property::Boolean("quiet-zone", ..) => {
                 let settings = self.settings.lock().unwrap();
                 Ok(settings.quiet_zone.to_value())
             }
