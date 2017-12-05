@@ -9,6 +9,7 @@ use gst_plugin::element::*;
 use gst_plugin::base_transform::*;
 
 use std::i32;
+use std::u32;
 use std::str;
 use std::sync::Mutex;
 
@@ -16,15 +17,22 @@ use image::GrayImage;
 use image::DynamicImage;
 use quirc::QrCoder;
 
+const CODE_WIDTH : u32 = 500;
+const CODE_HEIGHT : u32 = 500;
+
 #[derive(Debug, Clone)]
 struct Settings {
     pub prefix: Option<String>,
+    pub position: Option<String>,
+    pub qrcode_size: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
             prefix: None,
+            position: Some("top-left".to_owned()),
+            qrcode_size: 0
         }
     }
 }
@@ -39,13 +47,28 @@ struct FrameIdFilter {
     state: Mutex<Option<State>>,
 }
 
-static PROPERTIES: [Property; 1] = [
+static PROPERTIES: [Property; 3] = [
     Property::String(
         "prefix",
         "Prefix to add to frame index",
         "Prefix added to the qrcode before the frame number",
         None,
         PropertyMutability::ReadWrite,
+    ),
+    Property::String(
+        "position",
+        "Position to scan for the frameid",
+        "Position to scan for the frameid (top-left, top-right, bottom-left, bottom-right)",
+        Some("top-left"),
+        PropertyMutability::ReadWrite
+    ),
+    Property::UInt(
+        "qrcode-size",
+        "qrcode size",
+        "qrcode size in pixels",
+        (0, u32::MAX),
+        0,
+        PropertyMutability::ReadWrite
     ),
 ];
 
@@ -154,6 +177,14 @@ impl ObjectImpl<BaseTransform> for FrameIdFilter {
                 let mut settings = self.settings.lock().unwrap();
                 settings.prefix = value.get();
             }
+            Property::String("position", ..) => {
+                let mut settings = self.settings.lock().unwrap();
+                settings.position = value.get();
+            }
+            Property::UInt("qrcode-size", ..) => {
+                let mut settings = self.settings.lock().unwrap();
+                settings.qrcode_size = value.get().unwrap();
+            }
             _ => unimplemented!(),
         }
     }
@@ -165,6 +196,14 @@ impl ObjectImpl<BaseTransform> for FrameIdFilter {
             Property::String("prefix", ..) => {
                 let settings = self.settings.lock().unwrap();
                 Ok(settings.prefix.to_value())
+            }
+            Property::String("position", ..) => {
+                let settings = self.settings.lock().unwrap();
+                Ok(settings.position.to_value())
+            }
+            Property::String("qrcode-size", ..) => {
+                let settings = self.settings.lock().unwrap();
+                Ok(settings.qrcode_size.to_value())
             }
             _ => unimplemented!(),
         }
@@ -186,16 +225,32 @@ impl BaseTransformImpl<BaseTransform> for FrameIdFilter {
             Some(map) => map,
         };
 
-        let mut image = DynamicImage::new_luma8(state.info.width(), state.info.height()).to_luma();
+        let settings = self.settings.lock().unwrap();
+        let mut image = match settings.qrcode_size {
+            0 => DynamicImage::new_luma8(state.info.width(), state.info.height()).to_luma(),
+            x => DynamicImage::new_luma8(x, x).to_luma()
+        };
+
+        let offsets = match settings.position.as_ref().map(String::as_ref) {
+            Some("top-right") => (state.info.width() - image.width(), 0),
+            Some("bottom-left") => (0, state.info.height() - image.height()),
+            Some("bottom-right") => (state.info.width() - image.width(), state.info.height() - image.height()),
+            _ => (0, 0),
+        };
+
+        println!("Frame: {:?} {:?}", image.dimensions(), offsets);
+
         let dimensions = image.dimensions();
         for y in 0..dimensions.1 {
             for x in 0..dimensions.0 {
-                let baseindex : usize = 3 * (x + state.info.width() * y) as usize;
+                let baseindex : usize = 3 * (offsets.0 + x + state.info.width() * (y + offsets.1)) as usize;
                 let pixel = image.get_pixel_mut(x, y);
                 pixel[0] = map.as_slice()[baseindex]/3 + map.as_slice()[baseindex+1]/3 + map.as_slice()[baseindex+2]/3;
             }
         }
+        println!("Inspecting codes");
         let ret = self.inspect_codes(image);
+        println!("Finished codes");
 
         match ret.0 {
             gst::FlowReturn::Ok => {
