@@ -17,12 +17,16 @@ use image::Luma;
 #[derive(Debug, Clone)]
 struct Settings {
     pub prefix: Option<String>,
+    pub position: Option<String>,
+    pub quiet_zone: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
             prefix: None,
+            position: Some("top-left".to_owned()),
+            quiet_zone: true
         }
     }
 }
@@ -38,7 +42,7 @@ struct FrameId {
     state: Mutex<Option<State>>,
 }
 
-static PROPERTIES: [Property; 1] = [
+static PROPERTIES: [Property; 3] = [
     Property::String(
         "prefix",
         "Prefix to add to frame index",
@@ -46,6 +50,20 @@ static PROPERTIES: [Property; 1] = [
         None,
         PropertyMutability::ReadWrite,
     ),
+    Property::String(
+        "position",
+        "Position to draw the frameid",
+        "Position to draw the frameid (top-left, top-right, bottom-left, bottom-right)",
+        Some("top-left"),
+        PropertyMutability::ReadWrite
+    ),
+    Property::Boolean(
+        "quiet-zone",
+        "If a quiet zone should be drawn",
+        "If a quiet white border should be drawn around the qrcode",
+        true,
+        PropertyMutability::ReadWrite
+    )
 ];
 
 impl FrameId {
@@ -108,6 +126,7 @@ impl FrameId {
         let imp = Self::new(element);
         Box::new(imp)
     }
+
 }
 
 impl ObjectImpl<BaseTransform> for FrameId {
@@ -118,6 +137,17 @@ impl ObjectImpl<BaseTransform> for FrameId {
             Property::String("prefix", ..) => {
                 let mut settings = self.settings.lock().unwrap();
                 settings.prefix = value.get();
+            }
+            Property::String("position", ..) => {
+                let mut settings = self.settings.lock().unwrap();
+                settings.position = value.get();
+            }
+            Property::Boolean("quiet-zone", ..) => {
+                let mut settings = self.settings.lock().unwrap();
+                match value.get() {
+                    Some(x) => { settings.quiet_zone = x; },
+                    None => settings.quiet_zone = true
+                }
             }
             _ => unimplemented!(),
         }
@@ -130,6 +160,14 @@ impl ObjectImpl<BaseTransform> for FrameId {
             Property::String("prefix", ..) => {
                 let settings = self.settings.lock().unwrap();
                 Ok(settings.prefix.to_value())
+            }
+            Property::String("position", ..) => {
+                let settings = self.settings.lock().unwrap();
+                Ok(settings.position.to_value())
+            }
+            Property::String("quiet-zone", ..) => {
+                let settings = self.settings.lock().unwrap();
+                Ok(settings.quiet_zone.to_value())
             }
             _ => unimplemented!(),
         }
@@ -160,10 +198,17 @@ impl BaseTransformImpl<BaseTransform> for FrameId {
         let code = QrCode::new(text.to_string()).unwrap();
         let image = code.render::<Luma<u8>>().quiet_zone(true).build();
 
+        let offsets = match settings.position.as_ref().map(String::as_ref) {
+            Some("top-right") => (state.info.width() - image.width(), 0),
+            Some("bottom-left") => (0, state.info.height() - image.height()),
+            Some("bottom-right") => (state.info.width() - image.width(), state.info.height() - image.height()),
+            _ => (0, 0),
+        };
+
         let dimensions = image.dimensions();
         for y in 0..dimensions.1 {
             for x in 0..dimensions.0 {
-                let baseindex : usize = 4 * (x + state.info.width() * y) as usize;
+                let baseindex : usize = 4 * (offsets.0 + x + state.info.width() * (offsets.1 + y)) as usize;
                 let pixel = image.get_pixel(x, y);
                 map.as_mut_slice()[baseindex] = pixel[0];
                 map.as_mut_slice()[baseindex + 1] = pixel[0];
