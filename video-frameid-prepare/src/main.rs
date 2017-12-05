@@ -45,9 +45,10 @@ impl Config {
 // TODO This should be discovered by the input file
 const WIDTH: usize = 1280;
 const HEIGHT: usize = 720;
-const FRAMERATE: usize = 24;
+const FRAMERATE_NUM: usize = 30000;
+const FRAMERATE_DEN: usize = 1001;
 
-const PREFRAMES: i32 = 24;
+const PREFRAMES: i32 = 150;
 
 fn setup_prepend_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Result<bool, Error> {
     let src = gst::ElementFactory::make("videotestsrc", None).ok_or(MissingElement("videotestsrc"))?;
@@ -58,8 +59,9 @@ fn setup_prepend_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Resul
 
     src.set_property("num-buffers", &PREFRAMES)?;
     frameid.set_property("prefix", &"s:".to_owned())?;
-    srccapsfilter.set_property("caps", &gst::Caps::from_string(&format!("video/x-raw, format=(string)I420, width=(int){}, height=(int){}, framerate=(fraction){}/1",
-            WIDTH, HEIGHT, FRAMERATE)))?;
+    frameid.set_property("position", &"bottom-right".to_owned())?;
+    srccapsfilter.set_property("caps", &gst::Caps::from_string(&format!("video/x-raw, format=(string)I420, width=(int){}, height=(int){}, framerate=(fraction){}/{}",
+            WIDTH, HEIGHT, FRAMERATE_NUM, FRAMERATE_DEN)))?;
 
     pipeline.add_many(&[&src, &frameid, &srcconv, &srccapsfilter, &srcenc])?;
     gst::Element::link_many(&[&src, &frameid, &srcconv, &srccapsfilter, &srcenc])?;
@@ -107,6 +109,7 @@ fn setup_decoder_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad, config :
         videoconvert.sync_state_with_parent().unwrap();
         queue.sync_state_with_parent().unwrap();
         frameid.set_property("prefix", &"f:".to_owned()).unwrap();
+        frameid.set_property("position", &"bottom-right".to_owned()).unwrap();
 
         assert_eq!(enc.get_static_pad("src").unwrap().link(&sink_pad), gst::PadLinkReturn::Ok);
 
@@ -126,10 +129,11 @@ fn setup_append_branch(pipeline : &gst::Pipeline, sink_pad : gst::Pad) -> Result
     let lastcapsfilter = gst::ElementFactory::make("capsfilter", None).ok_or(MissingElement("capsfilter"))?;
     let lastenc = gst::ElementFactory::make("x264enc", None).ok_or(MissingElement("x264enc"))?;
 
-    lastcapsfilter.set_property("caps", &gst::Caps::from_string(&format!("video/x-raw, format=(string)I420, width=(int){}, height=(int){}, framerate=(fraction){}/1",
-            WIDTH, HEIGHT, FRAMERATE)))?;
+    lastcapsfilter.set_property("caps", &gst::Caps::from_string(&format!("video/x-raw, format=(string)I420, width=(int){}, height=(int){}, framerate=(fraction){}/{}",
+            WIDTH, HEIGHT, FRAMERATE_NUM, FRAMERATE_DEN)))?;
     videotestsrc.set_property("num-buffers", &PREFRAMES)?;
     lastframeid.set_property("prefix", &"e:".to_owned())?;
+    lastframeid.set_property("position", &"bottom-right".to_owned())?;
 
     pipeline.add_many(&[&videotestsrc, &lastframeid, &lastvideoconvert, &lastcapsfilter, &lastenc])?;
     gst::Element::link_many(&[&videotestsrc, &lastframeid, &lastvideoconvert, &lastcapsfilter, &lastenc])?;
