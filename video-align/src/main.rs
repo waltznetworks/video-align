@@ -106,14 +106,14 @@ fn setup_pipeline(path : &String, cropping : &Cropping, codes : Arc<Mutex<HashSe
         let capsfilter = gst::ElementFactory::make("capsfilter", None).unwrap();
         let filesink = gst::ElementFactory::make("filesink", None).unwrap();
         let codesclone = codes.clone();
-        if filter_by_codes {
+        if !filter_by_codes {
             connect_to_code_detected(&zbar, move |_el, code| {
                 println!("Code: {:?}", code);
                 let mut ret = code.starts_with("f:");
                 if ret {
                     let mut codesdata = codesclone.lock().unwrap();
                     let codestr = code.to_owned();
-                if !codesdata.contains(&codestr) {
+                    if !codesdata.contains(&codestr) {
                         codesdata.insert(codestr);
                     } else {
                         ret = false; // repeated frame
@@ -123,7 +123,6 @@ fn setup_pipeline(path : &String, cropping : &Cropping, codes : Arc<Mutex<HashSe
             });
         } else {
             connect_to_code_detected(&zbar, move |_el, code| {
-                println!("Code: {:?}", code);
                 let mut ret = code.starts_with("f:");
                 if ret {
                     let mut codesdata = codesclone.lock().unwrap();
@@ -134,6 +133,7 @@ fn setup_pipeline(path : &String, cropping : &Cropping, codes : Arc<Mutex<HashSe
                         ret = false; // frame is not present in our codes list
                     }
                 }
+                println!("Code: {:?} {:?}", code, ret);
                 !ret
             });
         }
